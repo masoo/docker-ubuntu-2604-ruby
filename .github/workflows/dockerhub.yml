@@ -1,0 +1,58 @@
+name: Build and Push Ruby Docker Image for Ubuntu 26.04
+
+on:
+  workflow_dispatch:
+  schedule:
+    # UTC 15:10 on Saturday
+    # JST 0:10 on Sunday
+    - cron: "10 15 * * 6"
+
+permissions:
+  contents: read
+
+env:
+  LATEST_RUBY_VERSION: "4.0.7"
+
+jobs:
+  build-latest:
+    name: Build Ruby "4.0.7" (latest)
+    runs-on: ubuntu-latest
+    outputs:
+      cache-bust: ${{ steps.cache-bust.outputs.value }}
+    steps:
+      - name: Calculate cache-bust value
+        id: cache-bust
+        run: echo "value=$(date +%Y-%W)" >> $GITHUB_OUTPUT
+      - name: Checkout code
+        uses: actions/checkout@v6
+      - uses: ./.github/actions/docker_hub_push
+        with:
+          docker-username: ${{ secrets.DOCKER_USERNAME }}
+          docker-password: ${{ secrets.DOCKER_ACCESS_TOKEN }}
+          ruby-version: ${{ env.LATEST_RUBY_VERSION }}
+          enable-cache-to: "true"
+          cache-bust: ${{ steps.cache-bust.outputs.value }}
+
+  build-others:
+    name: Build Ruby ${{ matrix.ruby-version }}
+    needs: build-latest
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        exclude:
+          # Exclude the latest version since it's already built
+          - ruby-version: "4.0.7"
+        ruby-version: [
+          3.4.0, 3.4.1, 3.4.2, 3.4.3, 3.4.4, 3.4.5, 3.4.6, 3.4.7, 3.4.8, 3.4.9, 3.4.10, 3.4.11,
+          4.0.0, 4.0.1, 4.0.2, 4.0.3, 4.0.4, 4.0.5, 4.0.6, 4.0.7,
+        ]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+      - uses: ./.github/actions/docker_hub_push
+        with:
+          docker-username: ${{ secrets.DOCKER_USERNAME }}
+          docker-password: ${{ secrets.DOCKER_ACCESS_TOKEN }}
+          ruby-version: ${{ matrix.ruby-version }}
+          enable-cache-to: "false"
+          cache-bust: ${{ needs.build-latest.outputs.cache-bust }}
